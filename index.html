@@ -141,6 +141,11 @@
       opacity: 0.45;
       cursor: not-allowed;
     }
+    .rendered-img {
+      max-width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
     .notes-table {
       width: 100%;
       border-collapse: collapse;
@@ -190,7 +195,7 @@
       color: #e2e8f0;
       opacity: 0.9;
     }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
     .card {
       padding: 16px;
       border-radius: 12px;
@@ -242,9 +247,7 @@
   <header>
     <h1>OPP Technique Practice</h1>
     <div class="actions">
-      <input type="file" id="pdf-file" accept="application/pdf" style="display:none;">
       <input type="file" id="import-data-file" accept="application/json" style="display:none;">
-      <button class="secondary" id="load-pdf-btn">Load PDF</button>
       <button class="secondary" id="export-data-btn">Export Data</button>
       <button class="secondary" id="import-data-btn">Import Data</button>
       <button class="secondary" id="view-stats-btn">View Stats</button>
@@ -479,7 +482,6 @@
     const regionsContainer = el('regions-container');
     const promptText = el('prompt-text');
     const pageInfo = el('page-info');
-    const pdfFrame = el('pdf-frame');
     const openPdfLink = el('open-pdf-link');
     const sessionProgress = el('session-progress');
 
@@ -544,9 +546,7 @@
       regionsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
     });
     const renderedPages = el('rendered-pages');
-    const pdfFileInput = el('pdf-file');
     const importDataInput = el('import-data-file');
-    const loadPdfBtn = el('load-pdf-btn');
     const exportDataBtn = el('export-data-btn');
     const importDataBtn = el('import-data-btn');
     const dataStatus = el('data-status');
@@ -560,14 +560,18 @@
     const hideNotesBtn = el('hide-notes-btn');
     const noteStatus = el('note-status');
     const noteHistory = el('note-history');
-    let pdfReady = false;
-    let pdfFailed = false;
-    let pdfDocPromise = null;
-    let pdfBlobUrl = null;
+    const showManualBtn = el('show-manual-btn');
     let notes = normalizeNotes(loadNotes());
-    // Simplify: Show Manual Page now just opens the PDF at the correct page (reliable behavior).
+    let manualVisible = false;
     el('show-manual-btn').addEventListener('click', () => {
-      window.open(openPdfLink.href, '_blank');
+      manualVisible = !manualVisible;
+      if (manualVisible) {
+        renderedPages.classList.remove('hidden');
+        showManualBtn.textContent = 'Hide Manual Page';
+      } else {
+        renderedPages.classList.add('hidden');
+        showManualBtn.textContent = 'Show Manual Page';
+      }
     });
     el('correct-btn').addEventListener('click', () => gradeCurrent(true));
     el('incorrect-btn').addEventListener('click', () => gradeCurrent(false));
@@ -589,8 +593,6 @@
     });
     notesText.addEventListener('blur', () => saveCurrentNote());
 
-    loadPdfBtn.addEventListener('click', () => pdfFileInput.click());
-    pdfFileInput.addEventListener('change', handlePdfFile);
     exportDataBtn.addEventListener('click', exportData);
     importDataBtn.addEventListener('click', () => importDataInput.click());
     importDataInput.addEventListener('change', handleImportData);
@@ -625,7 +627,6 @@
     function endSession() {
       practiceScreen.classList.add('hidden');
       setupScreen.classList.remove('hidden');
-      pdfFrame.classList.add('hidden');
     }
 
     function findTechnique(name) {
@@ -640,7 +641,6 @@
       if (currentIndex >= sessionDeck.length) {
         promptText.textContent = 'Session complete';
         pageInfo.textContent = '';
-        pdfFrame.classList.add('hidden');
         openPdfLink.href = '#';
         sessionProgress.textContent = `Done (${sessionDeck.length} cards)`;
         return;
@@ -651,8 +651,10 @@
       const pageParam = tech.pages[0] || 1;
       const pdfUrl = buildPdfUrl(pageParam);
       openPdfLink.href = pdfUrl;
+      manualVisible = false;
       renderedPages.classList.add('hidden'); // hide snapshots until requested
-      renderPages(tech.pages, pdfUrl);
+      showManualBtn.textContent = 'Show Manual Page';
+      renderImages(tech.pages);
       loadCurrentNote(tech.name);
       notesPanel.classList.add('hidden');
       sessionProgress.textContent = `Card ${currentIndex + 1} / ${sessionDeck.length}`;
@@ -722,33 +724,23 @@
       `;
     }
 
-    function renderPages(pages, pdfUrl) {
+    function renderImages(pages) {
       const container = el('rendered-pages');
       container.innerHTML = '';
-      if (!pages || !pages.length || !pdfjsLib) return;
-      if (!pdfDocPromise) {
-        container.innerHTML = '<div class="muted">Load the PDF first (top right).</div>';
+      if (!pages || !pages.length) {
+        container.innerHTML = '<div class="muted">No pages listed.</div>';
         return;
       }
-      pdfDocPromise.then(doc => {
-        pdfReady = true;
-        pages.forEach(pageNum => {
-          const canvas = document.createElement('canvas');
-          canvas.title = `Page ${pageNum}`;
-          container.appendChild(canvas);
-          doc.getPage(pageNum).then(page => {
-            const viewport = page.getViewport({ scale: 1.1 });
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            const renderContext = { canvasContext: context, viewport };
-            page.render(renderContext);
-          });
-        });
-      }).catch(() => {
-        pdfFailed = true;
-        container.innerHTML = '<div class="muted">Unable to render pages; use “Open PDF”.</div>';
+      pages.forEach(pageNum => {
+        const img = document.createElement('img');
+        img.className = 'rendered-img';
+        img.src = `pages/page-${pageNum}.png`;
+        img.alt = `Page ${pageNum}`;
+        container.appendChild(img);
       });
+      if (manualVisible) {
+        container.classList.remove('hidden');
+      }
     }
 
     function buildWeightedDeck(names) {
@@ -768,32 +760,10 @@
     }
 
     function buildPdfUrl(pageParam) {
-      if (pdfBlobUrl) {
-        return `${pdfBlobUrl}#page=${pageParam}&zoom=page-fit`;
-      }
       return `${PDF_PATH}#page=${pageParam}&zoom=page-fit`;
     }
 
-    function handlePdfFile(evt) {
-      const file = evt.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function() {
-        const buffer = reader.result;
-        pdfBlobUrl = URL.createObjectURL(file);
-        pdfDocPromise = pdfjsLib.getDocument({ data: buffer }).promise.catch(err => {
-          console.warn('pdf.js failed to parse selected PDF:', err);
-          pdfFailed = true;
-        });
-        pdfReady = false;
-        pdfFailed = false;
-        // Reload current card pages if in a session
-        if (!setupScreen.classList.contains('hidden') && sessionDeck.length === 0) return;
-        loadCard();
-      };
-      reader.readAsArrayBuffer(file);
-      setDataStatus(`Loaded PDF: ${file.name}`);
-    }
+    // PDF file loading removed; we now rely on pre-rendered images.
 
     function exportData() {
       const data = { stats, notes };
@@ -937,17 +907,6 @@
     function isDisabled(name) {
       const lower = name.toLowerCase();
       return DISABLED_KEYWORDS.some(k => lower.includes(k));
-    }
-  </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js" crossorigin="anonymous"></script>
-  <script>
-    if (window['pdfjsLib']) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
-      // Try to preload the bundled PDF; if blocked, user can load via "Load PDF"
-      pdfDocPromise = pdfjsLib.getDocument(PDF_PATH).promise.catch(err => {
-        console.warn('Preload of bundled PDF failed; use Load PDF button.', err);
-        return Promise.reject(err);
-      });
     }
   </script>
 </body>
