@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-   <!-- Google tag (gtag.js) -->
+     <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-JSENN6768Y"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -126,6 +126,29 @@
       min-width: 38px;
       text-align: center;
       display: inline-block;
+    }
+    .hint-panel {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #f8fafc;
+    }
+    .hint-panel textarea {
+      width: 100%;
+      min-height: 80px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .hint-text {
+      font-size: 14px;
+      color: var(--text);
+      white-space: pre-wrap;
     }
     .notes-history {
       margin-top: 8px;
@@ -292,7 +315,7 @@
         <div class="pages" id="page-info"></div>
         <div class="actions" style="margin-bottom: 10px;">
           <button class="secondary" id="show-manual-btn">Show Manual Page</button>
-          <a id="open-pdf-link" class="secondary" style="display:inline-flex; align-items:center; text-decoration:none; padding:10px 14px; border-radius:10px; border:1px solid var(--border);" target="_blank" rel="noopener">Open PDF</a>
+          <button class="secondary hidden" id="video-btn">Watch Video</button>
         </div>
         <div id="rendered-pages" class="hidden"></div>
         <div class="actions" style="margin-top: 12px;">
@@ -309,6 +332,20 @@
           <div class="actions" style="margin-top:8px;">
             <button class="primary" id="save-notes-btn">Save Note</button>
             <button class="ghost" id="hide-notes-btn">Hide</button>
+          </div>
+        </div>
+        <div class="hint-panel" id="hint-panel">
+          <div class="muted" style="margin-bottom:6px;">Card hint (auto-saves per technique).</div>
+          <div id="hint-display" class="hint-text muted">No hint saved.</div>
+          <div id="hint-editor" class="hidden" style="margin-top:6px;">
+            <textarea id="hint-input"></textarea>
+            <div class="actions" style="margin-top:8px;">
+              <button class="primary" id="save-hint-btn">Save Hint</button>
+              <button class="ghost" id="cancel-hint-btn">Cancel</button>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:8px;">
+            <button class="ghost" id="edit-hint-btn">Edit Hint</button>
           </div>
         </div>
       </div>
@@ -340,7 +377,6 @@
   <script>
     // Data model
     // Keep the PDF in the same folder as this file. Simpler name avoids URL encoding issues.
-    const PDF_PATH = 'opp-manual.pdf';
     const DISABLED_KEYWORDS = [
       'psoas major',
       'low ilium',
@@ -361,6 +397,41 @@
       'ps5 bilateral',
     ];
 
+    // Video links mapped by technique name in this app (from OPP3_techniques_videos.xlsx)
+    const VIDEO_MAP = {
+      'FPR for OA Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=5c83a92f-d213-43c4-b8ab-b3220117bbb5',
+      'FPR for AA Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=0d4beb80-8990-4c80-acd9-b3220117bc05',
+      'FPR for Typical Cervical (C2-C7) Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=fe6664bb-ba2f-490e-9bb4-b3220117bb95',
+      'Still for OA Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=479484af-09f6-41f8-97ab-b3220113487d',
+      'Still for AA Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=3980f46c-403e-47c0-9eec-b322011347f4',
+      'Still for Typical Cervical (C2-C7) Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=5174942c-8202-46d9-b779-b322011347d0',
+      'BLT/LAS for OA Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=7aecaa76-c5a3-4d80-9d7e-b3220113470f',
+      'BLT/LAS for AA Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=d056601f-97d4-4009-8888-b322011346eb',
+      'Short-lever BLT/LAS for Typical Cervical (C2-C7) Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=0fd95873-0ce4-4883-ba67-b3220113469a',
+      'Long-lever BLT/LAS for Typical Cervical (C2-C7) Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=5e982d04-eaa4-4367-979f-b32201134675',
+      'FPR for Upper (T1-4) Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'FPR for Lower (T5-T12) Type I Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'FPR for Lower (T5-T12) Type II Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Seated Still for Upper (T1-4) Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Seated Still for Lower (T5-12) Type I Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Seated Still for Lower (T5-12) Type II Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Long-lever BLT/LAS for Thoracic Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Short-lever BLT/LAS for Upper Thoracic (T1-T2) Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=cc1a7d90-3d4c-40ab-8ab1-b322013ba73b',
+      'Seated HVLA for Type II Thoracic Joint Dysfunctions/“Epigastric Thrust”': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=06b2fe3e-3864-492e-b462-b339011988df',
+      'Seated HVLA for Type II Extended Thoracic Joint Dysfunctions/“Knee in Back”': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=060132ab-c980-4c80-970e-b3390119890b',
+      'Seated HVLA for Type II Flexed Thoracic Joint Dysfunctions/“Knee in Back”': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=060132ab-c980-4c80-970e-b3390119890b',
+      'Prone HVLA for Lower (T5-T12) Thoracic Joint Dysfunctions/“Texas Twist”': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=cdd1211d-4815-4487-a425-b3390119886b',
+      'FPR for Type I Lumbar Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'FPR for Type II Lumbar Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Long-lever BLT/LAS for lumbar Joint dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=634f4b9d-ce9c-42b0-a0b7-b33001427b01',
+      'Short-lever BLT for Lumbar Joint Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=cc1a7d90-3d4c-40ab-8ab1-b322013ba73b',
+      'BLT Respiratory Diaphragm Dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=f09c0ec1-3f97-49a5-85ae-b322013bfade',
+      'Thoracic Inlet BLT/LAS/MFR': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=4ce00fd5-985b-4474-9bbb-b346016d34f0',
+      'Supine BLT/LAS for innominate dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=c6c9e259-6254-4e7a-811c-b33901096cae',
+      'Seated BLT/LAS for innominate dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=c6c9e259-6254-4e7a-811c-b33901096cae',
+      'BLT/LAS for lumbosacral junction': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=c6c9e259-6254-4e7a-811c-b33901096cae',
+      'Four Pole BLT/LAS for sacrum dysfunctions': 'https://rockyvistauniversity.hosted.panopto.com/Panopto/Pages/Viewer.aspx?pid=c6c9e259-6254-4e7a-811c-b33901096cae',
+    };
     const TECHNIQUES = [
       { region: 'Cervical', items: [
         { name: 'BLT/LAS for OA Joint Dysfunctions', pages: [266] },
@@ -444,32 +515,76 @@
         { name: 'BLT/LAS/MFR for rib cage dysfunctions', pages: [30] },
       ]},
       { region: 'Counterstrain – Cervical', items: [
-        { name: 'Counterstrain: Anterior Cervical (AC1 Mandible & AC1 TP)', pages: [316] },
-        { name: 'Counterstrain: Anterior Cervical (AC7)', pages: [317] },
-        { name: 'Counterstrain: Posterior Cervical (PC2, PC4-8 SP midline)', pages: [318] },
-        { name: 'Counterstrain: Posterior Cervical (PC3 SP midline)', pages: [319] },
+        { name: 'Counterstrain: AC1 Mandible', pages: [316] },
+        { name: 'Counterstrain: AC1 Transverse Process', pages: [316] },
+        { name: 'Counterstrain: AC7', pages: [317] },
+        { name: 'Counterstrain: PC2', pages: [318] },
+        { name: 'Counterstrain: PC3', pages: [319] },
+        { name: 'Counterstrain: PC4', pages: [318] },
+        { name: 'Counterstrain: PC5', pages: [318] },
+        { name: 'Counterstrain: PC6', pages: [318] },
+        { name: 'Counterstrain: PC7', pages: [318] },
+        { name: 'Counterstrain: PC8', pages: [318] },
       ]},
       { region: 'Counterstrain – Thoracic', items: [
-        { name: 'Counterstrain: Anterior Thoracic (AT1-6 midline, AT10 example)', pages: [321] },
-        { name: 'Counterstrain: Posterior Thoracic (PT1-12 transverse processes)', pages: [322] },
+        { name: 'Counterstrain: AT1', pages: [321] },
+        { name: 'Counterstrain: AT2', pages: [321] },
+        { name: 'Counterstrain: AT3', pages: [321] },
+        { name: 'Counterstrain: AT4', pages: [321] },
+        { name: 'Counterstrain: AT5', pages: [321] },
+        { name: 'Counterstrain: AT6', pages: [321] },
+        { name: 'Counterstrain: AT10 (example)', pages: [321] },
+        { name: 'Counterstrain: PT1', pages: [322] },
+        { name: 'Counterstrain: PT2', pages: [322] },
+        { name: 'Counterstrain: PT3', pages: [322] },
+        { name: 'Counterstrain: PT4', pages: [322] },
+        { name: 'Counterstrain: PT5', pages: [322] },
+        { name: 'Counterstrain: PT6', pages: [322] },
+        { name: 'Counterstrain: PT7', pages: [322] },
+        { name: 'Counterstrain: PT8', pages: [322] },
+        { name: 'Counterstrain: PT9', pages: [322] },
+        { name: 'Counterstrain: PT10', pages: [322] },
+        { name: 'Counterstrain: PT11', pages: [322] },
+        { name: 'Counterstrain: PT12', pages: [322] },
       ]},
       { region: 'Counterstrain – Lumbar', items: [
-        { name: 'Counterstrain: Anterior Lumbar (AL1 overview)', pages: [324] },
-        { name: 'Counterstrain: Anterior Lumbar (AL5)', pages: [325] },
+        { name: 'Counterstrain: AL1', pages: [324] },
+        { name: 'Counterstrain: AL2', pages: [324] },
+        { name: 'Counterstrain: AL3', pages: [324] },
+        { name: 'Counterstrain: AL4', pages: [324] },
+        { name: 'Counterstrain: AL5', pages: [325] },
       ]},
       { region: 'Counterstrain – Pelvis/Sacrum', items: [
-        { name: 'Counterstrain: Sacral Region (PS1, PS5)', pages: [326] },
+        { name: 'Counterstrain: PS1', pages: [326] },
+        { name: 'Counterstrain: PS5', pages: [326] },
         { name: 'Counterstrain: Anterior Pelvis CPs', pages: [327] },
         { name: 'Counterstrain: Psoas Major', pages: [328] },
-        { name: 'Counterstrain: Psoas/Iliacus variation (lateral recumbent)', pages: [329] },
+        { name: 'Counterstrain: Psoas/Iliacus variation', pages: [329] },
         { name: 'Counterstrain: Posterior Pelvis CPs', pages: [330] },
         { name: 'Counterstrain: Upper Pole L5', pages: [331] },
         { name: 'Counterstrain: High Ilium Sacroiliac (HISI)', pages: [332] },
       ]},
       { region: 'Counterstrain – Ribs', items: [
-        { name: 'Counterstrain: Rib Region Overview (AR/PR 1-10 locations)', pages: [343] },
-        { name: 'Counterstrain: Anterior Rib (AR) 1-10', pages: [344] },
-        { name: 'Counterstrain: Posterior Rib (PR) 1-10', pages: [345] },
+        { name: 'Counterstrain: AR1', pages: [344] },
+        { name: 'Counterstrain: AR2', pages: [344] },
+        { name: 'Counterstrain: AR3', pages: [344] },
+        { name: 'Counterstrain: AR4', pages: [344] },
+        { name: 'Counterstrain: AR5', pages: [344] },
+        { name: 'Counterstrain: AR6', pages: [344] },
+        { name: 'Counterstrain: AR7', pages: [344] },
+        { name: 'Counterstrain: AR8', pages: [344] },
+        { name: 'Counterstrain: AR9', pages: [344] },
+        { name: 'Counterstrain: AR10', pages: [344] },
+        { name: 'Counterstrain: PR1', pages: [345] },
+        { name: 'Counterstrain: PR2', pages: [345] },
+        { name: 'Counterstrain: PR3', pages: [345] },
+        { name: 'Counterstrain: PR4', pages: [345] },
+        { name: 'Counterstrain: PR5', pages: [345] },
+        { name: 'Counterstrain: PR6', pages: [345] },
+        { name: 'Counterstrain: PR7', pages: [345] },
+        { name: 'Counterstrain: PR8', pages: [345] },
+        { name: 'Counterstrain: PR9', pages: [345] },
+        { name: 'Counterstrain: PR10', pages: [345] },
       ]},
       { region: 'Counterstrain – Lower Extremity', items: [
         { name: 'Counterstrain: Lower Extremity CP overview', pages: [333] },
@@ -491,7 +606,6 @@
     const regionsContainer = el('regions-container');
     const promptText = el('prompt-text');
     const pageInfo = el('page-info');
-    const openPdfLink = el('open-pdf-link');
     const sessionProgress = el('session-progress');
 
     let sessionDeck = [];
@@ -570,7 +684,15 @@
     const noteStatus = el('note-status');
     const noteHistory = el('note-history');
     const showManualBtn = el('show-manual-btn');
+    const videoBtn = el('video-btn');
+    const hintDisplay = el('hint-display');
+    const hintEditor = el('hint-editor');
+    const hintInput = el('hint-input');
+    const editHintBtn = el('edit-hint-btn');
+    const saveHintBtn = el('save-hint-btn');
+    const cancelHintBtn = el('cancel-hint-btn');
     let notes = normalizeNotes(loadNotes());
+    let hints = loadHints();
     let manualVisible = false;
     el('show-manual-btn').addEventListener('click', () => {
       manualVisible = !manualVisible;
@@ -581,6 +703,10 @@
         renderedPages.classList.add('hidden');
         showManualBtn.textContent = 'Show Manual Page';
       }
+    });
+    videoBtn.addEventListener('click', () => {
+      const link = videoBtn.dataset.href;
+      if (link) window.open(link, '_blank');
     });
     el('correct-btn').addEventListener('click', () => gradeCurrent(true));
     el('incorrect-btn').addEventListener('click', () => gradeCurrent(false));
@@ -601,6 +727,17 @@
       noteSaveTimer = setTimeout(() => saveCurrentNote(true), 400);
     });
     notesText.addEventListener('blur', () => saveCurrentNote());
+
+    editHintBtn.addEventListener('click', () => {
+      hintEditor.classList.remove('hidden');
+      hintDisplay.classList.add('hidden');
+    });
+    cancelHintBtn.addEventListener('click', () => {
+      hintEditor.classList.add('hidden');
+      hintDisplay.classList.remove('hidden');
+      loadHint(currentTechniqueName());
+    });
+    saveHintBtn.addEventListener('click', () => saveCurrentHint());
 
     exportDataBtn.addEventListener('click', exportData);
     importDataBtn.addEventListener('click', () => importDataInput.click());
@@ -650,22 +787,29 @@
       if (currentIndex >= sessionDeck.length) {
         promptText.textContent = 'Session complete';
         pageInfo.textContent = '';
-        openPdfLink.href = '#';
         sessionProgress.textContent = `Done (${sessionDeck.length} cards)`;
         return;
       }
       const tech = sessionDeck[currentIndex];
       promptText.textContent = `Demonstrate: ${tech.name}`;
       pageInfo.textContent = `Manual page(s): ${tech.pages.join(', ')}`;
-      const pageParam = tech.pages[0] || 1;
-      const pdfUrl = buildPdfUrl(pageParam);
-      openPdfLink.href = pdfUrl;
       manualVisible = false;
       renderedPages.classList.add('hidden'); // hide snapshots until requested
       showManualBtn.textContent = 'Show Manual Page';
       renderImages(tech.pages);
+      const vid = VIDEO_MAP[tech.name];
+      if (vid) {
+        videoBtn.classList.remove('hidden');
+        videoBtn.dataset.href = vid;
+      } else {
+        videoBtn.classList.add('hidden');
+        videoBtn.dataset.href = '';
+      }
       loadCurrentNote(tech.name);
+      loadHint(tech.name);
       notesPanel.classList.add('hidden');
+      hintEditor.classList.add('hidden');
+      hintDisplay.classList.remove('hidden');
       sessionProgress.textContent = `Card ${currentIndex + 1} / ${sessionDeck.length}`;
     }
 
@@ -702,6 +846,38 @@
       renderNoteHistory(name);
       const hasNotes = (notes[name] && notes[name].length);
       updateNoteStatus(hasNotes ? 'Loaded' : '');
+    }
+
+    function currentTechniqueName() {
+      if (currentIndex >= sessionDeck.length) return null;
+      return sessionDeck[currentIndex]?.name || null;
+    }
+
+    function saveCurrentHint() {
+      const name = currentTechniqueName();
+      if (!name) return;
+      const text = (hintInput.value || '').trim();
+      if (!text) {
+        delete hints[name];
+      } else {
+        hints[name] = text;
+      }
+      saveHints();
+      loadHint(name);
+      hintEditor.classList.add('hidden');
+      hintDisplay.classList.remove('hidden');
+    }
+
+    function loadHint(name) {
+      const text = hints[name] || '';
+      hintInput.value = text;
+      if (text) {
+        hintDisplay.textContent = text;
+        hintDisplay.classList.remove('muted');
+      } else {
+        hintDisplay.textContent = 'No hint saved.';
+        hintDisplay.classList.add('muted');
+      }
     }
 
     function nextCard() {
@@ -745,6 +921,12 @@
         img.className = 'rendered-img';
         img.src = `pages/page-${pageNum}.png`;
         img.alt = `Page ${pageNum}`;
+        img.onerror = () => {
+          const div = document.createElement('div');
+          div.className = 'muted';
+          div.textContent = `Image missing: pages/page-${pageNum}.png`;
+          img.replaceWith(div);
+        };
         container.appendChild(img);
       });
       if (manualVisible) {
@@ -767,12 +949,6 @@
       items.sort((a, b) => a.score - b.score);
       return items.map(i => i.tech);
     }
-
-    function buildPdfUrl(pageParam) {
-      return `${PDF_PATH}#page=${pageParam}&zoom=page-fit`;
-    }
-
-    // PDF file loading removed; we now rely on pre-rendered images.
 
     function exportData() {
       const data = { stats, notes };
@@ -917,6 +1093,23 @@
       const lower = name.toLowerCase();
       return DISABLED_KEYWORDS.some(k => lower.includes(k));
     }
+
+    function loadHints() {
+      try {
+        return JSON.parse(localStorage.getItem('opp-technique-hints') || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveHints() {
+      try {
+        localStorage.setItem('opp-technique-hints', JSON.stringify(hints));
+      } catch (e) {
+        console.warn('Unable to save hints', e);
+      }
+    }
   </script>
 </body>
 </html>
+
