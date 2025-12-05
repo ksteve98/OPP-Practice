@@ -269,9 +269,72 @@
       background: #f8fafc;
       font-weight: 700;
     }
+    .setup-guide {
+      margin-top: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .setup-guide ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+    .setup-guide li { margin-bottom: 4px; }
+    .setup-guide .bullet { color: var(--text); font-weight: 700; }
+    .search-panel { margin-bottom: 12px; }
+    .search-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .search-row input[type="search"] {
+      flex: 1;
+      min-width: 260px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .search-label { font-weight: 700; margin-bottom: 6px; }
+    .feedback-widget {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      z-index: 20;
+    }
+    .feedback-panel {
+      width: min(720px, calc(100vw - 32px));
+      height: 520px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 18px 30px rgba(0,0,0,0.16);
+      overflow: hidden;
+    }
+    .feedback-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: #0f172a;
+      color: #e2e8f0;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .feedback-iframe {
+      width: 100%;
+      height: calc(100% - 44px);
+      border: 0;
+    }
     @media (max-width: 600px) {
       header { flex-direction: column; align-items: flex-start; }
       .checkbox-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+      .feedback-panel { height: 420px; }
     }
   </style>
 </head>
@@ -293,6 +356,21 @@
       <div class="panel">
         <h2>Select techniques to practice</h2>
         <p class="muted">Choose any mix of regions and techniques. Use “Select all” to grab a whole region.</p>
+        <div class="setup-guide">
+          <strong>Quick orientation</strong>
+          <ul>
+            <li><span class="bullet">Section 1:</span> Random region + technique pairing. Prioritize the biggest dysfunction and keep your localization tight.</li>
+            <li><span class="bullet">Section 2:</span> Counterstrain point hunt. Verify point, pain scale, 90-second hold, then neutral.</li>
+            <li><span class="bullet">Section 3:</span> Technique execution only. Focus on positioning, monitoring, localization, and force application.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="panel search-panel">
+        <div class="search-label">Filter techniques</div>
+        <div class="search-row">
+          <input id="tech-filter" type="search" placeholder="Type to find a region or technique..." />
+          <div class="muted" id="filter-status"></div>
+        </div>
       </div>
       <div id="regions-container"></div>
       <div class="actions" style="margin-top: 12px;">
@@ -373,6 +451,17 @@
       </div>
     </div>
   </main>
+
+  <div class="feedback-widget" aria-live="polite">
+    <div id="feedback-panel" class="feedback-panel hidden" role="dialog" aria-label="Feedback form">
+      <div class="feedback-header">
+        <span>Got 30 seconds? Share quick feedback</span>
+        <button class="ghost" id="close-feedback-btn" aria-label="Close feedback form">Close</button>
+      </div>
+      <iframe class="feedback-iframe" src="https://docs.google.com/forms/d/e/1FAIpQLSddJUQEgtIqWHeOPN9RLa3z7Gehmp1W7prUboOHN32jIGr9Ig/viewform?embedded=true" allowfullscreen title="Feedback form"></iframe>
+    </div>
+    <button class="primary" id="open-feedback-btn" aria-expanded="false" aria-controls="feedback-panel">Feedback</button>
+  </div>
 
   <script>
     // Data model
@@ -604,6 +693,8 @@
     const practiceScreen = el('practice-screen');
     const statsScreen = el('stats-screen');
     const regionsContainer = el('regions-container');
+    const filterInput = el('tech-filter');
+    const filterStatus = el('filter-status');
     const promptText = el('prompt-text');
     const pageInfo = el('page-info');
     const sessionProgress = el('session-progress');
@@ -655,6 +746,8 @@
         badge.className = 'badge';
         badge.style.background = accuracyColor(pct);
         badge.textContent = `${pct}%`;
+        label.dataset.name = item.name;
+        label.dataset.region = region.region;
         span.textContent = item.name;
         label.append(cb, span, badge);
         grid.appendChild(label);
@@ -691,9 +784,14 @@
     const editHintBtn = el('edit-hint-btn');
     const saveHintBtn = el('save-hint-btn');
     const cancelHintBtn = el('cancel-hint-btn');
+    const openFeedbackBtn = el('open-feedback-btn');
+    const closeFeedbackBtn = el('close-feedback-btn');
+    const feedbackPanel = el('feedback-panel');
     let notes = normalizeNotes(loadNotes());
     let hints = loadHints();
     let manualVisible = false;
+    filterInput?.addEventListener('input', applyFilter);
+    applyFilter();
     el('show-manual-btn').addEventListener('click', () => {
       manualVisible = !manualVisible;
       if (manualVisible) {
@@ -755,6 +853,14 @@
         renderStatsTable();
       }
     });
+
+    function setFeedbackVisibility(isOpen) {
+      feedbackPanel.classList.toggle('hidden', !isOpen);
+      openFeedbackBtn.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    openFeedbackBtn.addEventListener('click', () => setFeedbackVisibility(true));
+    closeFeedbackBtn.addEventListener('click', () => setFeedbackVisibility(false));
 
     function startSession() {
       const checked = Array.from(regionsContainer.querySelectorAll('input[type="checkbox"]:checked'));
@@ -1087,6 +1193,22 @@
       const r = clamp < 50 ? 255 : Math.round(255 - (clamp - 50) * 5.1);
       const g = clamp < 50 ? Math.round(clamp * 5.1) : 255;
       return `rgb(${r},${g},120)`;
+    }
+
+    function applyFilter() {
+      const term = (filterInput?.value || '').toLowerCase().trim();
+      const labels = Array.from(regionsContainer.querySelectorAll('label.tech'));
+      let matches = 0;
+      labels.forEach(label => {
+        const name = (label.dataset.name || '').toLowerCase();
+        const region = (label.dataset.region || '').toLowerCase();
+        const isMatch = !term || name.includes(term) || region.includes(term);
+        label.classList.toggle('hidden', !isMatch);
+        if (isMatch) matches += 1;
+      });
+      if (filterStatus) {
+        filterStatus.textContent = term ? `${matches} match${matches === 1 ? '' : 'es'}` : '';
+      }
     }
 
     function isDisabled(name) {
