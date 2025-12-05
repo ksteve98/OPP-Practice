@@ -296,41 +296,6 @@
       font-size: 14px;
     }
     .search-label { font-weight: 700; margin-bottom: 6px; }
-    .feedback-widget {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-      z-index: 20;
-    }
-    .feedback-panel {
-      width: min(720px, calc(100vw - 32px));
-      height: 520px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 18px 30px rgba(0,0,0,0.16);
-      overflow: hidden;
-    }
-    .feedback-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--border);
-      background: #0f172a;
-      color: #e2e8f0;
-      font-weight: 700;
-      font-size: 14px;
-    }
-    .feedback-iframe {
-      width: 100%;
-      height: calc(100% - 44px);
-      border: 0;
-    }
     @media (max-width: 600px) {
       header { flex-direction: column; align-items: flex-start; }
       .checkbox-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
