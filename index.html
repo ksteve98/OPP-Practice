@@ -299,6 +299,7 @@
     @media (max-width: 600px) {
       header { flex-direction: column; align-items: flex-start; }
       .checkbox-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+      .feedback-panel { height: 420px; }
     }
   </style>
 </head>
@@ -415,6 +416,17 @@
       </div>
     </div>
   </main>
+
+  <div class="feedback-widget" aria-live="polite">
+    <div id="feedback-panel" class="feedback-panel hidden" role="dialog" aria-label="Feedback form">
+      <div class="feedback-header">
+        <span>Got 30 seconds? Share quick feedback</span>
+        <button class="ghost" id="close-feedback-btn" aria-label="Close feedback form">Close</button>
+      </div>
+      <iframe class="feedback-iframe" src="https://docs.google.com/forms/d/e/1FAIpQLSddJUQEgtIqWHeOPN9RLa3z7Gehmp1W7prUboOHN32jIGr9Ig/viewform?embedded=true" allowfullscreen title="Feedback form"></iframe>
+    </div>
+    <button class="primary" id="open-feedback-btn" aria-expanded="false" aria-controls="feedback-panel">Feedback</button>
+  </div>
 
   <script>
     // Data model
@@ -737,6 +749,9 @@
     const editHintBtn = el('edit-hint-btn');
     const saveHintBtn = el('save-hint-btn');
     const cancelHintBtn = el('cancel-hint-btn');
+    const openFeedbackBtn = el('open-feedback-btn');
+    const closeFeedbackBtn = el('close-feedback-btn');
+    const feedbackPanel = el('feedback-panel');
     let notes = normalizeNotes(loadNotes());
     let hints = loadHints();
     let manualVisible = false;
@@ -803,6 +818,14 @@
         renderStatsTable();
       }
     });
+
+    function setFeedbackVisibility(isOpen) {
+      feedbackPanel.classList.toggle('hidden', !isOpen);
+      openFeedbackBtn.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    openFeedbackBtn.addEventListener('click', () => setFeedbackVisibility(true));
+    closeFeedbackBtn.addEventListener('click', () => setFeedbackVisibility(false));
 
     function startSession() {
       const checked = Array.from(regionsContainer.querySelectorAll('input[type="checkbox"]:checked'));
